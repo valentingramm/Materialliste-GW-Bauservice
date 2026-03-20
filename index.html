@@ -17,7 +17,7 @@
         button.danger { background-color: #ff3b30; }
         button.success { background-color: #34c759; }
         
-        /* NEU: Kleine Buttons für Hinzufügen & Löschen */
+        /* Kleine Buttons für Hinzufügen & Löschen */
         .btn-small { padding: 6px 12px !important; font-size: 14px !important; width: auto !important; }
         
         ul { list-style: none; padding: 0; margin: 0; }
@@ -304,16 +304,29 @@
             document.body.removeChild(printDiv);
         }
 
+        // --- HISTORIE RENDERN UND LÖSCHEN ---
         function renderHistory() {
             document.getElementById('historyList').innerHTML = issues.map(issue => `
                 <li style="flex-direction: column; align-items: flex-start;">
-                    <div style="width: 100%; display: flex; justify-content: space-between;">
+                    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
                         <strong>${issue.date} - ${issue.employee}</strong>
-                        <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g, "&quot;")})'>PDF</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g, "&quot;")})'>PDF</button>
+                            <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
+                        </div>
                     </div>
                     <span style="color: #666; font-size: 14px; margin-top: 5px;">${issue.items.length} Teile (z.B. ${issue.items[0]})</span>
                 </li>
             `).join('');
+        }
+
+        function deleteIssue(id) {
+            // Sicherheitsabfrage, damit nichts aus Versehen gelöscht wird
+            if(confirm("Möchtest du diese Ausgabe wirklich endgültig löschen?")) {
+                issues = issues.filter(issue => issue.id !== id);
+                saveData();
+                renderHistory();
+            }
         }
 
         function saveData() {
