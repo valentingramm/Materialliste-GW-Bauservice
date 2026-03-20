@@ -25,7 +25,7 @@
             padding: 8px 14px !important; 
             font-size: 14px !important; 
             width: auto !important; 
-            min-width: 95px;           /* Gleiche Breite wie Hinzufügen-Buttons */
+            min-width: 95px;           /* Gleiche Breite für alle kleinen Buttons */
             text-align: center;
         }
 
@@ -136,13 +136,73 @@
         let ctx = canvas.getContext('2d');
         let isDrawing = false;
 
-        // ... (Der Rest des Scripts bleibt gleich wie in der vorherigen Version) ...
+        db.ref('/').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            employees = data.employees || ["Max Mustermann", "Anna Schmidt", "Thomas Berger"];
+            materials = data.materials || ["Akkuschrauber Makita", "Winkelschleifer", "Bohrhammer", "Verlängerungskabel 25m"];
+            issues = Object.values(data.issues || {}).sort((a,b) => b.id - a.id);
+
+            document.getElementById('connectionStatus').style.background = '#34c759';
+            document.getElementById('connectionStatus').innerHTML = '🟢 Live verbunden – Alle Geräte sehen Änderungen sofort';
+
+            renderAll();
+        });
+
+        function renderAll() {
+            renderEmployees();
+            renderMaterials();
+            renderHistory();
+        }
+
+        function renderEmployees() {
+            document.getElementById('employeeList').innerHTML = employees.map((emp,i) => 
+                `<li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>`
+            ).join('');
+            
+            let opt = '<option value="">-- Bitte wählen --</option>' + employees.map(e => `<option value="${e}">${e}</option>`).join('');
+            document.getElementById('issuerSelect').innerHTML = opt;
+            document.getElementById('employeeSelect').innerHTML = opt;
+        }
 
         function renderMaterials() {
+            document.getElementById('materialList').innerHTML = materials.map((mat,i) => 
+                `<li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>`
+            ).join('');
+
             document.getElementById('availableMaterials').innerHTML = materials.map((mat) => 
                 `<li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>`
             ).join('');
         }
+
+        function renderHistory() {
+            document.getElementById('historyList').innerHTML = issues.map(issue => `
+                <li style="flex-direction:column;align-items:flex-start;">
+                    <div style="width:100%;display:flex;justify-content:space-between;">
+                        <strong>${issue.date} — ${issue.employee}</strong>
+                        <div>
+                            <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g,"&quot;")})'>PDF</button>
+                            <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
+                        </div>
+                    </div>
+                    <small>Herausgeber: ${issue.issuer} | ${issue.items.length} Teile</small>
+                </li>
+            `).join('');
+        }
+
+        function addEmployee() {
+            let val = document.getElementById('newEmployee').value.trim();
+            if(val) { employees.push(val); db.ref('employees').set(employees); document.getElementById('newEmployee').value = ''; }
+        }
+        function deleteEmployee(i) { employees.splice(i,1); db.ref('employees').set(employees); }
+
+        function addMaterial() {
+            let val = document.getElementById('newMaterial').value.trim();
+            if(val) { materials.push(val); db.ref('materials').set(materials); document.getElementById('newMaterial').value = ''; }
+        }
+        function deleteMaterial(i) { materials.splice(i,1); db.ref('materials').set(materials); }
+
+        function addToCart(mat) { currentCart.push(mat); renderCart(); }
+        function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
 
         function renderCart() {
             let div = document.getElementById('selectedMaterials');
@@ -158,14 +218,84 @@
             `).join('');
         }
 
-        // Der Rest des Codes (Signatur, saveIssue, generatePDF, etc.) bleibt unverändert
-        // ... (bitte den Rest aus der vorherigen Version hier einfügen, falls nötig)
+        // Signatur-Funktionen
+        function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 300);
 
-        function addToCart(mat) { currentCart.push(mat); renderCart(); }
-        function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
+        function getPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let x = e.touches ? e.touches[0].clientX : e.clientX;
+            let y = e.touches ? e.touches[0].clientY : e.clientY;
+            return {x: x-rect.left, y:y-rect.top};
+        }
 
-        // Signatur-Funktionen, saveIssue, generatePDF, deleteIssue usw. bleiben gleich wie in der letzten Version
-        // (Aus Platzgründen hier nicht nochmal vollständig wiederholt)
+        function startDrawing(e){e.preventDefault(); isDrawing=true; let p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y);}
+        function draw(e){if(!isDrawing)return; e.preventDefault(); let p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke();}
+        function stopDrawing(){isDrawing=false;}
+
+        canvas.addEventListener('touchstart', startDrawing, {passive:false});
+        canvas.addEventListener('touchmove', draw, {passive:false});
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
+        function isCanvasBlank(){let b=document.createElement('canvas'); b.width=canvas.width; b.height=canvas.height; return canvas.toDataURL()===b.toDataURL();}
+
+        async function saveIssue() {
+            let issuer = document.getElementById('issuerSelect').value;
+            let emp = document.getElementById('employeeSelect').value;
+            if(!issuer || !emp || issuer === emp || currentCart.length === 0 || isCanvasBlank()) {
+                return alert("Bitte alle Felder ausfüllen (Herausgeber, Empfänger, Material und Unterschrift)!");
+            }
+
+            let issueId = Date.now();
+            let issue = {
+                id: issueId,
+                date: new Date().toLocaleDateString('de-DE') + " " + new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
+                issuer: issuer,
+                employee: emp,
+                items: [...currentCart],
+                signature: canvas.toDataURL()
+            };
+
+            await db.ref('issues/' + issueId).set(issue);
+            generatePDF(issue);
+
+            currentCart = [];
+            renderCart();
+            clearSignature();
+            document.getElementById('issuerSelect').value = "";
+            document.getElementById('employeeSelect').value = "";
+        }
+
+        async function generatePDF(issue) {
+            const printDiv = document.createElement('div');
+            printDiv.style.padding = "40px"; printDiv.style.fontFamily = "Arial"; printDiv.style.width = "800px";
+            printDiv.innerHTML = `
+                <h1>Übergabeprotokoll Material</h1>
+                <p><strong>Datum:</strong> ${issue.date}</p>
+                <p><strong>Herausgeber:</strong> ${issue.issuer}</p>
+                <p><strong>Empfänger:</strong> ${issue.employee}</p>
+                <h3>Übergebene Materialien:</h3>
+                <ul>${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}</ul>
+                <p><strong>Unterschrift Empfänger:</strong></p>
+                <img src="${issue.signature}" style="border:1px solid #000; max-width:400px;">
+            `;
+            document.body.appendChild(printDiv);
+            const canvasImg = await html2canvas(printDiv, {scale: 2});
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            pdf.addImage(canvasImg.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, (canvasImg.height * 210) / canvasImg.width);
+            pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
+            document.body.removeChild(printDiv);
+        }
+
+        function deleteIssue(id) {
+            if(confirm("Ausgabe wirklich löschen?")) db.ref('issues/'+id).remove();
+        }
     </script>
 </body>
 </html>
