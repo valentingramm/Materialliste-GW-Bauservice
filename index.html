@@ -7,4 +7,326 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; color: #333; 
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; color: #333; }
+        h1, h2, h3 { color: #1a1a1a; }
+        .card { background: white; margin-bottom: 20px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        input, button, select { padding: 12px; margin: 5px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
+        
+        button { background-color: #007aff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        button.danger { background-color: #ff3b30; }
+        button.success { background-color: #34c759; }
+        
+        /* NEU: Kleine Buttons für Hinzufügen & Löschen */
+        .btn-small { padding: 6px 12px !important; font-size: 14px !important; width: auto !important; }
+        
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; }
+        li:last-child { border-bottom: none; }
+        .flex-row { display: flex; gap: 10px; align-items: center; }
+        .flex-row input { flex: 1; }
+        
+        /* Unterschriftenfeld iPad Optimierung */
+        #signatureWrapper { border: 2px dashed #007aff; border-radius: 8px; background: #fafafa; margin: 15px 0; overflow: hidden; }
+        #signaturePad { width: 100%; height: 250px; display: block; touch-action: none; /* Verhindert Scrollen beim Zeichnen */ }
+        
+        /* Checkout Bereich */
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .cart-item { background: #e3f2fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+        
+        @media (max-width: 768px) { .grid-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>📦 Firmen Material-Ausgabe</h1>
+
+    <!-- 1. Mitarbeiter Verwaltung -->
+    <div class="card">
+        <h2>👥 Mitarbeiter verwalten</h2>
+        <div class="flex-row">
+            <input type="text" id="newEmployee" placeholder="Vor- und Nachname" />
+            <button class="btn-small" onclick="addEmployee()">Hinzufügen</button>
+        </div>
+        <ul id="employeeList"></ul>
+    </div>
+
+    <!-- 2. Material Verwaltung -->
+    <div class="card">
+        <h2>🛠️ Material-Bestand verwalten</h2>
+        <div class="flex-row">
+            <input type="text" id="newMaterial" placeholder="z.B. Akkuschrauber Makita" />
+            <button class="btn-small" onclick="addMaterial()">Hinzufügen</button>
+        </div>
+        <ul id="materialList"></ul>
+    </div>
+
+    <!-- 3. Neue Ausgabe (Warenkorb & Unterschrift) -->
+    <div class="card" style="border: 2px solid #007aff;">
+        <h2>📝 Neue Ausgabe erstellen</h2>
+        <label><strong>Mitarbeiter auswählen:</strong></label>
+        <select id="employeeSelect">
+            <option value="">-- Bitte Mitarbeiter wählen --</option>
+        </select>
+
+        <div class="grid-container" style="margin-top: 20px;">
+            <!-- Verfügbares Material -->
+            <div>
+                <h3>Verfügbare Materialien</h3>
+                <ul id="availableMaterials" style="border: 1px solid #ccc; border-radius: 8px; padding: 10px; min-height: 150px;"></ul>
+            </div>
+            <!-- Ausgewähltes Material (Warenkorb) -->
+            <div>
+                <h3>Ausgewählt für Ausgabe</h3>
+                <div id="selectedMaterials" style="border: 1px solid #34c759; border-radius: 8px; padding: 10px; min-height: 150px; background: #f9fff9;"></div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>Hier unterschreiben (für die komplette Liste oben):</h3>
+            <div id="signatureWrapper">
+                <canvas id="signaturePad"></canvas>
+            </div>
+            <button class="danger btn-small" onclick="clearSignature()">🗑 Unterschrift neu</button>
+        </div>
+
+        <button class="success" style="margin-top: 20px; font-size: 18px; padding: 15px;" onclick="saveIssue()">✅ Ausgabe speichern & PDF laden</button>
+    </div>
+
+    <!-- 4. Historie -->
+    <div class="card">
+        <h2>📜 Ausgaben-Historie</h2>
+        <ul id="historyList"></ul>
+    </div>
+
+    <script>
+        // Daten aus dem iPad-Speicher laden
+        let employees = JSON.parse(localStorage.getItem('emp_v1')) || [];
+        let materials = JSON.parse(localStorage.getItem('mat_v1')) || [];
+        let issues = JSON.parse(localStorage.getItem('iss_v1')) || [];
+        let currentCart = []; // Aktuelle Liste für die Ausgabe
+        
+        let canvas = document.getElementById('signaturePad');
+        let ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        // --- MITARBEITER ---
+        function renderEmployees() {
+            document.getElementById('employeeList').innerHTML = employees.map((emp, i) => `
+                <li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>
+            `).join('');
+            
+            let select = document.getElementById('employeeSelect');
+            select.innerHTML = '<option value="">-- Bitte Mitarbeiter wählen --</option>' + 
+                employees.map(emp => `<option value="${emp}">${emp}</option>`).join('');
+        }
+
+        function addEmployee() {
+            let input = document.getElementById('newEmployee');
+            if (input.value.trim()) {
+                employees.push(input.value.trim());
+                input.value = '';
+                saveData();
+                renderEmployees();
+            }
+        }
+
+        function deleteEmployee(i) { employees.splice(i, 1); saveData(); renderEmployees(); }
+
+        // --- MATERIALIEN ---
+        function renderMaterials() {
+            document.getElementById('materialList').innerHTML = materials.map((mat, i) => `
+                <li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>
+            `).join('');
+            renderAvailableMaterials();
+        }
+
+        function addMaterial() {
+            let input = document.getElementById('newMaterial');
+            if (input.value.trim()) {
+                materials.push(input.value.trim());
+                input.value = '';
+                saveData();
+                renderMaterials();
+            }
+        }
+
+        function deleteMaterial(i) { materials.splice(i, 1); saveData(); renderMaterials(); }
+
+        // --- CHECKOUT (WARENKORB) ---
+        function renderAvailableMaterials() {
+            document.getElementById('availableMaterials').innerHTML = materials.map((mat, i) => `
+                <li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>
+            `).join('');
+        }
+
+        function addToCart(mat) {
+            currentCart.push(mat);
+            renderCart();
+        }
+
+        function removeFromCart(i) {
+            currentCart.splice(i, 1);
+            renderCart();
+        }
+
+        function renderCart() {
+            let cartDiv = document.getElementById('selectedMaterials');
+            if(currentCart.length === 0) {
+                cartDiv.innerHTML = '<p style="color:#888; font-size:14px;">Noch kein Material ausgewählt.</p>';
+                return;
+            }
+            cartDiv.innerHTML = currentCart.map((mat, i) => `
+                <div class="cart-item">
+                    <span>${mat}</span>
+                    <button class="danger btn-small" onclick="removeFromCart(${i})">❌</button>
+                </div>
+            `).join('');
+        }
+
+        // --- UNTERSCHRIFT (iPAD OPTIMIERT) ---
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+        }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 100);
+
+        function getPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function startDrawing(e) {
+            e.preventDefault(); 
+            isDrawing = true;
+            let pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault(); 
+            let pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function stopDrawing(e) {
+            e.preventDefault();
+            isDrawing = false;
+        }
+
+        canvas.addEventListener('touchstart', startDrawing, {passive: false});
+        canvas.addEventListener('touchmove', draw, {passive: false});
+        canvas.addEventListener('touchend', stopDrawing, {passive: false});
+        
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function clearSignature() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function isCanvasBlank() {
+            let blank = document.createElement('canvas');
+            blank.width = canvas.width;
+            blank.height = canvas.height;
+            return canvas.toDataURL() === blank.toDataURL();
+        }
+
+        // --- SPEICHERN & PDF ---
+        async function saveIssue() {
+            let emp = document.getElementById('employeeSelect').value;
+            if (!emp) return alert("Bitte wähle oben einen Mitarbeiter aus!");
+            if (currentCart.length === 0) return alert("Bitte füge mindestens ein Material zur Liste hinzu!");
+            if (isCanvasBlank()) return alert("Der Mitarbeiter muss noch unterschreiben!");
+
+            let issue = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
+                employee: emp,
+                items: [...currentCart],
+                signature: canvas.toDataURL()
+            };
+
+            issues.unshift(issue);
+            saveData();
+            
+            currentCart = [];
+            renderCart();
+            clearSignature();
+            document.getElementById('employeeSelect').value = "";
+            renderHistory();
+            
+            generatePDF(issue);
+        }
+
+        async function generatePDF(issue) {
+            const printDiv = document.createElement('div');
+            printDiv.style.padding = "40px";
+            printDiv.style.fontFamily = "Arial, sans-serif";
+            printDiv.style.background = "white";
+            printDiv.style.width = "800px";
+            
+            printDiv.innerHTML = `
+                <h1 style="border-bottom: 2px solid #000; padding-bottom: 10px;">Übergabeprotokoll Material</h1>
+                <table style="width: 100%; margin-top: 20px; font-size: 18px;">
+                    <tr><td style="width: 150px;"><strong>Datum:</strong></td><td>${issue.date}</td></tr>
+                    <tr><td><strong>Mitarbeiter:</strong></td><td>${issue.employee}</td></tr>
+                </table>
+                <h3 style="margin-top: 30px;">Folgende Materialien wurden empfangen:</h3>
+                <ul style="font-size: 18px; line-height: 1.6;">
+                    ${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}
+                </ul>
+                <div style="margin-top: 50px;">
+                    <p><strong>Unterschrift Mitarbeiter:</strong></p>
+                    <img src="${issue.signature}" style="border: 1px solid #ccc; max-width: 400px; max-height: 200px;" />
+                </div>
+            `;
+            
+            document.body.appendChild(printDiv);
+            const canvasImg = await html2canvas(printDiv, { scale: 2 });
+            const imgData = canvasImg.toDataURL('image/jpeg', 1.0);
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const imgHeight = (canvasImg.height * pageWidth) / canvasImg.width;
+            
+            pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, imgHeight);
+            pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
+            document.body.removeChild(printDiv);
+        }
+
+        function renderHistory() {
+            document.getElementById('historyList').innerHTML = issues.map(issue => `
+                <li style="flex-direction: column; align-items: flex-start;">
+                    <div style="width: 100%; display: flex; justify-content: space-between;">
+                        <strong>${issue.date} - ${issue.employee}</strong>
+                        <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g, "&quot;")})'>PDF</button>
+                    </div>
+                    <span style="color: #666; font-size: 14px; margin-top: 5px;">${issue.items.length} Teile (z.B. ${issue.items[0]})</span>
+                </li>
+            `).join('');
+        }
+
+        function saveData() {
+            localStorage.setItem('emp_v1', JSON.stringify(employees));
+            localStorage.setItem('mat_v1', JSON.stringify(materials));
+            localStorage.setItem('iss_v1', JSON.stringify(issues));
+        }
+
+        // Init App
+        renderEmployees();
+        renderMaterials();
+        renderCart();
+        renderHistory();
+    </script>
+</body>
+</html>
