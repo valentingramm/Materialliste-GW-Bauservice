@@ -34,6 +34,8 @@
         .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .cart-item { background: #e3f2fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
         
+        .selection-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 15px; }
+        
         @media (max-width: 768px) { .grid-container { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -42,7 +44,7 @@
 
     <!-- 1. Mitarbeiter Verwaltung -->
     <div class="card">
-        <h2>👥 Mitarbeiter verwalten</h2>
+        <h2>👥 Personen verwalten (Mitarbeiter & Herausgeber)</h2>
         <div class="flex-row">
             <input type="text" id="newEmployee" placeholder="Vor- und Nachname" />
             <button class="btn-small" onclick="addEmployee()">Hinzufügen</button>
@@ -63,10 +65,20 @@
     <!-- 3. Neue Ausgabe (Warenkorb & Unterschrift) -->
     <div class="card" style="border: 2px solid #007aff;">
         <h2>📝 Neue Ausgabe erstellen</h2>
-        <label><strong>Mitarbeiter auswählen:</strong></label>
-        <select id="employeeSelect">
-            <option value="">-- Bitte Mitarbeiter wählen --</option>
-        </select>
+        
+        <div class="selection-box">
+            <label><strong>1. Herausgegeben von (Lager/Büro):</strong></label>
+            <select id="issuerSelect">
+                <option value="">-- Bitte Herausgeber wählen --</option>
+            </select>
+            
+            <div style="height: 10px;"></div> <!-- Abstand -->
+            
+            <label><strong>2. Empfangender Mitarbeiter:</strong></label>
+            <select id="employeeSelect">
+                <option value="">-- Bitte Empfänger wählen --</option>
+            </select>
+        </div>
 
         <div class="grid-container" style="margin-top: 20px;">
             <!-- Verfügbares Material -->
@@ -82,7 +94,7 @@
         </div>
 
         <div style="margin-top: 20px;">
-            <h3>Hier unterschreiben (für die komplette Liste oben):</h3>
+            <h3>Unterschrift des EMPFÄNGERS (für die komplette Liste):</h3>
             <div id="signatureWrapper">
                 <canvas id="signaturePad"></canvas>
             </div>
@@ -111,13 +123,17 @@
 
         // --- MITARBEITER ---
         function renderEmployees() {
+            // Liste oben aktualisieren
             document.getElementById('employeeList').innerHTML = employees.map((emp, i) => `
                 <li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>
             `).join('');
             
-            let select = document.getElementById('employeeSelect');
-            select.innerHTML = '<option value="">-- Bitte Mitarbeiter wählen --</option>' + 
+            // Dropdowns aktualisieren (Herausgeber UND Empfänger nutzen die gleiche Namensliste)
+            let optionsHTML = '<option value="">-- Bitte wählen --</option>' + 
                 employees.map(emp => `<option value="${emp}">${emp}</option>`).join('');
+                
+            document.getElementById('employeeSelect').innerHTML = optionsHTML;
+            document.getElementById('issuerSelect').innerHTML = optionsHTML;
         }
 
         function addEmployee() {
@@ -244,14 +260,19 @@
 
         // --- SPEICHERN & PDF ---
         async function saveIssue() {
+            let issuer = document.getElementById('issuerSelect').value;
             let emp = document.getElementById('employeeSelect').value;
-            if (!emp) return alert("Bitte wähle oben einen Mitarbeiter aus!");
+            
+            if (!issuer) return alert("Bitte wähle aus, wer das Material herausgibt!");
+            if (!emp) return alert("Bitte wähle den Empfänger aus!");
+            if (issuer === emp) return alert("Herausgeber und Empfänger können nicht dieselbe Person sein!");
             if (currentCart.length === 0) return alert("Bitte füge mindestens ein Material zur Liste hinzu!");
-            if (isCanvasBlank()) return alert("Der Mitarbeiter muss noch unterschreiben!");
+            if (isCanvasBlank()) return alert("Der Empfänger muss noch unterschreiben!");
 
             let issue = {
                 id: Date.now(),
                 date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
+                issuer: issuer,
                 employee: emp,
                 items: [...currentCart],
                 signature: canvas.toDataURL()
@@ -264,6 +285,7 @@
             renderCart();
             clearSignature();
             document.getElementById('employeeSelect').value = "";
+            document.getElementById('issuerSelect').value = "";
             renderHistory();
             
             generatePDF(issue);
@@ -278,16 +300,17 @@
             
             printDiv.innerHTML = `
                 <h1 style="border-bottom: 2px solid #000; padding-bottom: 10px;">Übergabeprotokoll Material</h1>
-                <table style="width: 100%; margin-top: 20px; font-size: 18px;">
+                <table style="width: 100%; margin-top: 20px; font-size: 18px; line-height: 1.5;">
                     <tr><td style="width: 150px;"><strong>Datum:</strong></td><td>${issue.date}</td></tr>
-                    <tr><td><strong>Mitarbeiter:</strong></td><td>${issue.employee}</td></tr>
+                    <tr><td><strong>Herausgeber:</strong></td><td>${issue.issuer}</td></tr>
+                    <tr><td><strong>Empfänger:</strong></td><td>${issue.employee}</td></tr>
                 </table>
-                <h3 style="margin-top: 30px;">Folgende Materialien wurden empfangen:</h3>
+                <h3 style="margin-top: 30px;">Folgende Materialien wurden übergeben:</h3>
                 <ul style="font-size: 18px; line-height: 1.6;">
                     ${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}
                 </ul>
                 <div style="margin-top: 50px;">
-                    <p><strong>Unterschrift Mitarbeiter:</strong></p>
+                    <p><strong>Unterschrift Empfänger (${issue.employee}):</strong></p>
                     <img src="${issue.signature}" style="border: 1px solid #ccc; max-width: 400px; max-height: 200px;" />
                 </div>
             `;
@@ -300,7 +323,7 @@
             const imgHeight = (canvasImg.height * pageWidth) / canvasImg.width;
             
             pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, imgHeight);
-            pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
+            pdf.save(`Material_an_${issue.employee}_${issue.id}.pdf`);
             document.body.removeChild(printDiv);
         }
 
@@ -309,19 +332,19 @@
             document.getElementById('historyList').innerHTML = issues.map(issue => `
                 <li style="flex-direction: column; align-items: flex-start;">
                     <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
-                        <strong>${issue.date} - ${issue.employee}</strong>
+                        <strong>${issue.date} - 👤 ${issue.employee}</strong>
                         <div style="display: flex; gap: 8px;">
                             <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g, "&quot;")})'>PDF</button>
                             <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
                         </div>
                     </div>
-                    <span style="color: #666; font-size: 14px; margin-top: 5px;">${issue.items.length} Teile (z.B. ${issue.items[0]})</span>
+                    <span style="color: #666; font-size: 14px; margin-top: 5px;">Herausgegeben von: ${issue.issuer}</span>
+                    <span style="color: #666; font-size: 14px;">${issue.items.length} Teile (z.B. ${issue.items[0]})</span>
                 </li>
             `).join('');
         }
 
         function deleteIssue(id) {
-            // Sicherheitsabfrage, damit nichts aus Versehen gelöscht wird
             if(confirm("Möchtest du diese Ausgabe wirklich endgültig löschen?")) {
                 issues = issues.filter(issue => issue.id !== id);
                 saveData();
