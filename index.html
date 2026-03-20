@@ -27,9 +27,12 @@
         .flex-row input { flex: 1; }
         #signatureWrapper { border: 2px dashed #007aff; border-radius: 8px; background: #fafafa; margin: 15px 0; overflow: hidden; }
         #signaturePad { width: 100%; height: 250px; display: block; touch-action: none; }
-        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .cart-item { background: #e3f2fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
-        .selection-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 15px; }
+        
+        /* Neue vertikale Anordnung */
+        .material-section { display: flex; flex-direction: column; gap: 25px; }
+        .section-box { border: 1px solid #ddd; border-radius: 10px; padding: 15px; background: #fafafa; }
+        .cart-box { border: 2px solid #34c759; background: #f0fdf4; }
+
         #connectionStatus { padding: 12px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 20px; }
     </style>
 </head>
@@ -66,35 +69,36 @@
             <select id="employeeSelect"><option value="">-- Bitte wählen --</option></select>
         </div>
 
-        <div class="grid-container">
-            <div>
+        <!-- NEUE VERTIKALE ANORDNUNG -->
+        <div class="material-section">
+            <div class="section-box">
                 <h3>Verfügbare Materialien</h3>
-                <ul id="availableMaterials" style="border:1px solid #ccc;border-radius:8px;padding:10px;min-height:160px;"></ul>
+                <ul id="availableMaterials"></ul>
             </div>
-            <div>
+
+            <div class="section-box cart-box">
                 <h3>Ausgewählt für Ausgabe</h3>
-                <div id="selectedMaterials" style="border:1px solid #34c759;border-radius:8px;padding:10px;min-height:160px;background:#f9fff9;"></div>
+                <div id="selectedMaterials"></div>
             </div>
         </div>
 
-        <div style="margin-top:20px;">
+        <div style="margin-top:25px;">
             <h3>Unterschrift des Empfängers:</h3>
             <div id="signatureWrapper"><canvas id="signaturePad"></canvas></div>
             <button class="danger btn-small" onclick="clearSignature()">Unterschrift löschen</button>
         </div>
 
-        <button class="success" style="margin-top:20px;font-size:18px;padding:16px;width:100%;" onclick="saveIssue()">
+        <button class="success" style="margin-top:25px;font-size:18px;padding:16px;width:100%;" onclick="saveIssue()">
             ✅ Ausgabe speichern & PDF herunterladen
         </button>
     </div>
 
     <div class="card">
-        <h2>📜 Ausgaben-Historie (Live von allen Geräten)</h2>
+        <h2>📜 Ausgaben-Historie (Live)</h2>
         <ul id="historyList"></ul>
     </div>
 
     <script>
-        // === DEINE FIREBASE DATEN ===
         var firebaseConfig = {
           apiKey: "AIzaSyAj5D135Fu7cEG2Qh9BB54qfrTo-TUz5nc",
           authDomain: "material---ausgabe.firebaseapp.com",
@@ -104,7 +108,6 @@
           messagingSenderId: "76046257977",
           appId: "1:76046257977:web:5a17562816b60a47fa62e8"
         };
-        // ============================
 
         firebase.initializeApp(firebaseConfig);
         var db = firebase.database();
@@ -114,12 +117,10 @@
         let ctx = canvas.getContext('2d');
         let isDrawing = false;
 
-        // Echtzeit-Synchronisation
         db.ref('/').on('value', (snapshot) => {
             const data = snapshot.val() || {};
             employees = data.employees || ["Max Mustermann", "Anna Schmidt", "Thomas Berger"];
             materials = data.materials || ["Akkuschrauber Makita", "Winkelschleifer", "Bohrhammer", "Verlängerungskabel 25m"];
-            
             issues = Object.values(data.issues || {}).sort((a,b) => b.id - a.id);
 
             document.getElementById('connectionStatus').style.background = '#34c759';
@@ -145,10 +146,6 @@
         }
 
         function renderMaterials() {
-            document.getElementById('materialList').innerHTML = materials.map((mat,i) => 
-                `<li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>`
-            ).join('');
-            
             document.getElementById('availableMaterials').innerHTML = materials.map((mat) => 
                 `<li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>`
             ).join('');
@@ -169,33 +166,25 @@
             `).join('');
         }
 
-        // Funktionen
         function addEmployee() {
             let val = document.getElementById('newEmployee').value.trim();
-            if(val) { 
-                employees.push(val); 
-                db.ref('employees').set(employees); 
-                document.getElementById('newEmployee').value = ''; 
-            }
+            if(val) { employees.push(val); db.ref('employees').set(employees); document.getElementById('newEmployee').value = ''; }
         }
         function deleteEmployee(i) { employees.splice(i,1); db.ref('employees').set(employees); }
 
         function addMaterial() {
             let val = document.getElementById('newMaterial').value.trim();
-            if(val) { 
-                materials.push(val); 
-                db.ref('materials').set(materials); 
-                document.getElementById('newMaterial').value = ''; 
-            }
+            if(val) { materials.push(val); db.ref('materials').set(materials); document.getElementById('newMaterial').value = ''; }
         }
         function deleteMaterial(i) { materials.splice(i,1); db.ref('materials').set(materials); }
 
         function addToCart(mat) { currentCart.push(mat); renderCart(); }
         function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
+
         function renderCart() {
             let div = document.getElementById('selectedMaterials');
             if(currentCart.length === 0) {
-                div.innerHTML = '<p style="color:#888;">Noch kein Material ausgewählt</p>';
+                div.innerHTML = '<p style="color:#888; text-align:center; padding:15px;">Noch kein Material ausgewählt</p>';
                 return;
             }
             div.innerHTML = currentCart.map((m,i) => `
@@ -203,7 +192,7 @@
             `).join('');
         }
 
-        // Signatur (iPad optimiert)
+        // Signatur-Funktionen
         function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; }
         window.addEventListener('resize', resizeCanvas);
         setTimeout(resizeCanvas, 300);
