@@ -3,48 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Material Ausgabe App</title>
+    <title>Material Ausgabe</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; color: #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
         h1, h2, h3 { color: #1a1a1a; }
-        .card { background: white; margin-bottom: 20px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .card { background: white; margin-bottom: 20px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         input, button, select { padding: 12px; margin: 5px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
-        
         button { background-color: #007aff; color: white; border: none; font-weight: bold; cursor: pointer; }
         button:hover { background-color: #0056b3; }
         button.danger { background-color: #ff3b30; }
         button.success { background-color: #34c759; }
-        
-        /* Kleine Buttons für Hinzufügen & Löschen */
         .btn-small { padding: 6px 12px !important; font-size: 14px !important; width: auto !important; }
-        
         ul { list-style: none; padding: 0; margin: 0; }
         li { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; }
         li:last-child { border-bottom: none; }
         .flex-row { display: flex; gap: 10px; align-items: center; }
         .flex-row input { flex: 1; }
-        
-        /* Unterschriftenfeld iPad Optimierung */
         #signatureWrapper { border: 2px dashed #007aff; border-radius: 8px; background: #fafafa; margin: 15px 0; overflow: hidden; }
-        #signaturePad { width: 100%; height: 250px; display: block; touch-action: none; /* Verhindert Scrollen beim Zeichnen */ }
-        
-        /* Checkout Bereich */
+        #signaturePad { width: 100%; height: 250px; display: block; touch-action: none; }
         .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .cart-item { background: #e3f2fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
-        
         .selection-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 15px; }
-        
-        @media (max-width: 768px) { .grid-container { grid-template-columns: 1fr; } }
+        #connectionStatus { padding: 12px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <h1>📦 Firmen Material-Ausgabe</h1>
+    <div id="connectionStatus">⏳ Verbinde zur Cloud...</div>
+    <h1>📦 Material Ausgabe</h1>
 
-    <!-- 1. Mitarbeiter Verwaltung -->
     <div class="card">
-        <h2>👥 Personen verwalten (Mitarbeiter & Herausgeber)</h2>
+        <h2>👥 Personen verwalten</h2>
         <div class="flex-row">
             <input type="text" id="newEmployee" placeholder="Vor- und Nachname" />
             <button class="btn-small" onclick="addEmployee()">Hinzufügen</button>
@@ -52,9 +46,8 @@
         <ul id="employeeList"></ul>
     </div>
 
-    <!-- 2. Material Verwaltung -->
     <div class="card">
-        <h2>🛠️ Material-Bestand verwalten</h2>
+        <h2>🛠️ Materialien verwalten</h2>
         <div class="flex-row">
             <input type="text" id="newMaterial" placeholder="z.B. Akkuschrauber Makita" />
             <button class="btn-small" onclick="addMaterial()">Hinzufügen</button>
@@ -62,307 +55,232 @@
         <ul id="materialList"></ul>
     </div>
 
-    <!-- 3. Neue Ausgabe (Warenkorb & Unterschrift) -->
     <div class="card" style="border: 2px solid #007aff;">
         <h2>📝 Neue Ausgabe erstellen</h2>
         
         <div class="selection-box">
-            <label><strong>1. Herausgegeben von (Lager/Büro):</strong></label>
-            <select id="issuerSelect">
-                <option value="">-- Bitte Herausgeber wählen --</option>
-            </select>
-            
-            <div style="height: 10px;"></div> <!-- Abstand -->
-            
-            <label><strong>2. Empfangender Mitarbeiter:</strong></label>
-            <select id="employeeSelect">
-                <option value="">-- Bitte Empfänger wählen --</option>
-            </select>
+            <label><strong>Herausgegeben von:</strong></label>
+            <select id="issuerSelect"><option value="">-- Bitte wählen --</option></select>
+            <div style="height:10px"></div>
+            <label><strong>Empfänger:</strong></label>
+            <select id="employeeSelect"><option value="">-- Bitte wählen --</option></select>
         </div>
 
-        <div class="grid-container" style="margin-top: 20px;">
-            <!-- Verfügbares Material -->
+        <div class="grid-container">
             <div>
                 <h3>Verfügbare Materialien</h3>
-                <ul id="availableMaterials" style="border: 1px solid #ccc; border-radius: 8px; padding: 10px; min-height: 150px;"></ul>
+                <ul id="availableMaterials" style="border:1px solid #ccc;border-radius:8px;padding:10px;min-height:160px;"></ul>
             </div>
-            <!-- Ausgewähltes Material (Warenkorb) -->
             <div>
                 <h3>Ausgewählt für Ausgabe</h3>
-                <div id="selectedMaterials" style="border: 1px solid #34c759; border-radius: 8px; padding: 10px; min-height: 150px; background: #f9fff9;"></div>
+                <div id="selectedMaterials" style="border:1px solid #34c759;border-radius:8px;padding:10px;min-height:160px;background:#f9fff9;"></div>
             </div>
         </div>
 
-        <div style="margin-top: 20px;">
-            <h3>Unterschrift des EMPFÄNGERS (für die komplette Liste):</h3>
-            <div id="signatureWrapper">
-                <canvas id="signaturePad"></canvas>
-            </div>
-            <button class="danger btn-small" onclick="clearSignature()">🗑 Unterschrift neu</button>
+        <div style="margin-top:20px;">
+            <h3>Unterschrift des Empfängers:</h3>
+            <div id="signatureWrapper"><canvas id="signaturePad"></canvas></div>
+            <button class="danger btn-small" onclick="clearSignature()">Unterschrift löschen</button>
         </div>
 
-        <button class="success" style="margin-top: 20px; font-size: 18px; padding: 15px;" onclick="saveIssue()">✅ Ausgabe speichern & PDF laden</button>
+        <button class="success" style="margin-top:20px;font-size:18px;padding:16px;width:100%;" onclick="saveIssue()">
+            ✅ Ausgabe speichern & PDF herunterladen
+        </button>
     </div>
 
-    <!-- 4. Historie -->
     <div class="card">
-        <h2>📜 Ausgaben-Historie</h2>
+        <h2>📜 Ausgaben-Historie (Live von allen Geräten)</h2>
         <ul id="historyList"></ul>
     </div>
 
     <script>
-        // Daten aus dem iPad-Speicher laden
-        let employees = JSON.parse(localStorage.getItem('emp_v1')) || [];
-        let materials = JSON.parse(localStorage.getItem('mat_v1')) || [];
-        let issues = JSON.parse(localStorage.getItem('iss_v1')) || [];
-        let currentCart = []; // Aktuelle Liste für die Ausgabe
-        
+        // === DEINE FIREBASE DATEN ===
+        var firebaseConfig = {
+          apiKey: "AIzaSyAj5D135Fu7cEG2Qh9BB54qfrTo-TUz5nc",
+          authDomain: "material---ausgabe.firebaseapp.com",
+          databaseURL: "https://material---ausgabe-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "material---ausgabe",
+          storageBucket: "material---ausgabe.firebasestorage.app",
+          messagingSenderId: "76046257977",
+          appId: "1:76046257977:web:5a17562816b60a47fa62e8"
+        };
+        // ============================
+
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+
+        let employees = [], materials = [], issues = [], currentCart = [];
         let canvas = document.getElementById('signaturePad');
         let ctx = canvas.getContext('2d');
         let isDrawing = false;
 
-        // --- MITARBEITER ---
-        function renderEmployees() {
-            // Liste oben aktualisieren
-            document.getElementById('employeeList').innerHTML = employees.map((emp, i) => `
-                <li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>
-            `).join('');
+        // Echtzeit-Synchronisation
+        db.ref('/').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            employees = data.employees || ["Max Mustermann", "Anna Schmidt", "Thomas Berger"];
+            materials = data.materials || ["Akkuschrauber Makita", "Winkelschleifer", "Bohrhammer", "Verlängerungskabel 25m"];
             
-            // Dropdowns aktualisieren (Herausgeber UND Empfänger nutzen die gleiche Namensliste)
-            let optionsHTML = '<option value="">-- Bitte wählen --</option>' + 
-                employees.map(emp => `<option value="${emp}">${emp}</option>`).join('');
-                
-            document.getElementById('employeeSelect').innerHTML = optionsHTML;
-            document.getElementById('issuerSelect').innerHTML = optionsHTML;
+            issues = Object.values(data.issues || {}).sort((a,b) => b.id - a.id);
+
+            document.getElementById('connectionStatus').style.background = '#34c759';
+            document.getElementById('connectionStatus').innerHTML = '🟢 Live verbunden – Alle Geräte sehen Änderungen sofort';
+
+            renderAll();
+        });
+
+        function renderAll() {
+            renderEmployees();
+            renderMaterials();
+            renderHistory();
         }
 
+        function renderEmployees() {
+            document.getElementById('employeeList').innerHTML = employees.map((emp,i) => 
+                `<li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>`
+            ).join('');
+            
+            let opt = '<option value="">-- Bitte wählen --</option>' + employees.map(e => `<option value="${e}">${e}</option>`).join('');
+            document.getElementById('issuerSelect').innerHTML = opt;
+            document.getElementById('employeeSelect').innerHTML = opt;
+        }
+
+        function renderMaterials() {
+            document.getElementById('materialList').innerHTML = materials.map((mat,i) => 
+                `<li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>`
+            ).join('');
+            
+            document.getElementById('availableMaterials').innerHTML = materials.map((mat) => 
+                `<li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>`
+            ).join('');
+        }
+
+        function renderHistory() {
+            document.getElementById('historyList').innerHTML = issues.map(issue => `
+                <li style="flex-direction:column;align-items:flex-start;">
+                    <div style="width:100%;display:flex;justify-content:space-between;">
+                        <strong>${issue.date} — ${issue.employee}</strong>
+                        <div>
+                            <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g,"&quot;")})'>PDF</button>
+                            <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
+                        </div>
+                    </div>
+                    <small>Herausgeber: ${issue.issuer} | ${issue.items.length} Teile</small>
+                </li>
+            `).join('');
+        }
+
+        // Funktionen
         function addEmployee() {
-            let input = document.getElementById('newEmployee');
-            if (input.value.trim()) {
-                employees.push(input.value.trim());
-                input.value = '';
-                saveData();
-                renderEmployees();
+            let val = document.getElementById('newEmployee').value.trim();
+            if(val) { 
+                employees.push(val); 
+                db.ref('employees').set(employees); 
+                document.getElementById('newEmployee').value = ''; 
             }
         }
-
-        function deleteEmployee(i) { employees.splice(i, 1); saveData(); renderEmployees(); }
-
-        // --- MATERIALIEN ---
-        function renderMaterials() {
-            document.getElementById('materialList').innerHTML = materials.map((mat, i) => `
-                <li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>
-            `).join('');
-            renderAvailableMaterials();
-        }
+        function deleteEmployee(i) { employees.splice(i,1); db.ref('employees').set(employees); }
 
         function addMaterial() {
-            let input = document.getElementById('newMaterial');
-            if (input.value.trim()) {
-                materials.push(input.value.trim());
-                input.value = '';
-                saveData();
-                renderMaterials();
+            let val = document.getElementById('newMaterial').value.trim();
+            if(val) { 
+                materials.push(val); 
+                db.ref('materials').set(materials); 
+                document.getElementById('newMaterial').value = ''; 
             }
         }
+        function deleteMaterial(i) { materials.splice(i,1); db.ref('materials').set(materials); }
 
-        function deleteMaterial(i) { materials.splice(i, 1); saveData(); renderMaterials(); }
-
-        // --- CHECKOUT (WARENKORB) ---
-        function renderAvailableMaterials() {
-            document.getElementById('availableMaterials').innerHTML = materials.map((mat, i) => `
-                <li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>
-            `).join('');
-        }
-
-        function addToCart(mat) {
-            currentCart.push(mat);
-            renderCart();
-        }
-
-        function removeFromCart(i) {
-            currentCart.splice(i, 1);
-            renderCart();
-        }
-
+        function addToCart(mat) { currentCart.push(mat); renderCart(); }
+        function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
         function renderCart() {
-            let cartDiv = document.getElementById('selectedMaterials');
+            let div = document.getElementById('selectedMaterials');
             if(currentCart.length === 0) {
-                cartDiv.innerHTML = '<p style="color:#888; font-size:14px;">Noch kein Material ausgewählt.</p>';
+                div.innerHTML = '<p style="color:#888;">Noch kein Material ausgewählt</p>';
                 return;
             }
-            cartDiv.innerHTML = currentCart.map((mat, i) => `
-                <div class="cart-item">
-                    <span>${mat}</span>
-                    <button class="danger btn-small" onclick="removeFromCart(${i})">❌</button>
-                </div>
+            div.innerHTML = currentCart.map((m,i) => `
+                <div class="cart-item"><span>${m}</span><button class="danger btn-small" onclick="removeFromCart(${i})">❌</button></div>
             `).join('');
         }
 
-        // --- UNTERSCHRIFT (iPAD OPTIMIERT) ---
-        function resizeCanvas() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = '#000';
-        }
+        // Signatur (iPad optimiert)
+        function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; }
         window.addEventListener('resize', resizeCanvas);
-        setTimeout(resizeCanvas, 100);
+        setTimeout(resizeCanvas, 300);
 
         function getPos(e) {
             let rect = canvas.getBoundingClientRect();
-            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX - rect.left, y: clientY - rect.top };
+            let x = e.touches ? e.touches[0].clientX : e.clientX;
+            let y = e.touches ? e.touches[0].clientY : e.clientY;
+            return {x: x-rect.left, y:y-rect.top};
         }
 
-        function startDrawing(e) {
-            e.preventDefault(); 
-            isDrawing = true;
-            let pos = getPos(e);
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
-        }
+        function startDrawing(e){e.preventDefault(); isDrawing=true; let p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y);}
+        function draw(e){if(!isDrawing)return; e.preventDefault(); let p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke();}
+        function stopDrawing(){isDrawing=false;}
 
-        function draw(e) {
-            if (!isDrawing) return;
-            e.preventDefault(); 
-            let pos = getPos(e);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-        }
-
-        function stopDrawing(e) {
-            e.preventDefault();
-            isDrawing = false;
-        }
-
-        canvas.addEventListener('touchstart', startDrawing, {passive: false});
-        canvas.addEventListener('touchmove', draw, {passive: false});
-        canvas.addEventListener('touchend', stopDrawing, {passive: false});
-        
+        canvas.addEventListener('touchstart', startDrawing, {passive:false});
+        canvas.addEventListener('touchmove', draw, {passive:false});
+        canvas.addEventListener('touchend', stopDrawing);
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        function clearSignature() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
+        function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
+        function isCanvasBlank(){let b=document.createElement('canvas'); b.width=canvas.width; b.height=canvas.height; return canvas.toDataURL()===b.toDataURL();}
 
-        function isCanvasBlank() {
-            let blank = document.createElement('canvas');
-            blank.width = canvas.width;
-            blank.height = canvas.height;
-            return canvas.toDataURL() === blank.toDataURL();
-        }
-
-        // --- SPEICHERN & PDF ---
         async function saveIssue() {
             let issuer = document.getElementById('issuerSelect').value;
             let emp = document.getElementById('employeeSelect').value;
-            
-            if (!issuer) return alert("Bitte wähle aus, wer das Material herausgibt!");
-            if (!emp) return alert("Bitte wähle den Empfänger aus!");
-            if (issuer === emp) return alert("Herausgeber und Empfänger können nicht dieselbe Person sein!");
-            if (currentCart.length === 0) return alert("Bitte füge mindestens ein Material zur Liste hinzu!");
-            if (isCanvasBlank()) return alert("Der Empfänger muss noch unterschreiben!");
+            if(!issuer || !emp || issuer === emp || currentCart.length === 0 || isCanvasBlank()) {
+                return alert("Bitte alle Felder ausfüllen (Herausgeber, Empfänger, Material und Unterschrift)!");
+            }
 
+            let issueId = Date.now();
             let issue = {
-                id: Date.now(),
-                date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
+                id: issueId,
+                date: new Date().toLocaleDateString('de-DE') + " " + new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
                 issuer: issuer,
                 employee: emp,
                 items: [...currentCart],
                 signature: canvas.toDataURL()
             };
 
-            issues.unshift(issue);
-            saveData();
-            
+            await db.ref('issues/' + issueId).set(issue);
+            generatePDF(issue);
+
             currentCart = [];
             renderCart();
             clearSignature();
-            document.getElementById('employeeSelect').value = "";
             document.getElementById('issuerSelect').value = "";
-            renderHistory();
-            
-            generatePDF(issue);
+            document.getElementById('employeeSelect').value = "";
         }
 
         async function generatePDF(issue) {
             const printDiv = document.createElement('div');
-            printDiv.style.padding = "40px";
-            printDiv.style.fontFamily = "Arial, sans-serif";
-            printDiv.style.background = "white";
-            printDiv.style.width = "800px";
-            
+            printDiv.style.padding = "40px"; printDiv.style.fontFamily = "Arial"; printDiv.style.width = "800px";
             printDiv.innerHTML = `
-                <h1 style="border-bottom: 2px solid #000; padding-bottom: 10px;">Übergabeprotokoll Material</h1>
-                <table style="width: 100%; margin-top: 20px; font-size: 18px; line-height: 1.5;">
-                    <tr><td style="width: 150px;"><strong>Datum:</strong></td><td>${issue.date}</td></tr>
-                    <tr><td><strong>Herausgeber:</strong></td><td>${issue.issuer}</td></tr>
-                    <tr><td><strong>Empfänger:</strong></td><td>${issue.employee}</td></tr>
-                </table>
-                <h3 style="margin-top: 30px;">Folgende Materialien wurden übergeben:</h3>
-                <ul style="font-size: 18px; line-height: 1.6;">
-                    ${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}
-                </ul>
-                <div style="margin-top: 50px;">
-                    <p><strong>Unterschrift Empfänger (${issue.employee}):</strong></p>
-                    <img src="${issue.signature}" style="border: 1px solid #ccc; max-width: 400px; max-height: 200px;" />
-                </div>
+                <h1>Übergabeprotokoll Material</h1>
+                <p><strong>Datum:</strong> ${issue.date}</p>
+                <p><strong>Herausgeber:</strong> ${issue.issuer}</p>
+                <p><strong>Empfänger:</strong> ${issue.employee}</p>
+                <h3>Übergebene Materialien:</h3>
+                <ul>${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}</ul>
+                <p><strong>Unterschrift Empfänger:</strong></p>
+                <img src="${issue.signature}" style="border:1px solid #000; max-width:400px;">
             `;
-            
             document.body.appendChild(printDiv);
-            const canvasImg = await html2canvas(printDiv, { scale: 2 });
-            const imgData = canvasImg.toDataURL('image/jpeg', 1.0);
+            const canvasImg = await html2canvas(printDiv, {scale: 2});
             const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const imgHeight = (canvasImg.height * pageWidth) / canvasImg.width;
-            
-            pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, imgHeight);
-            pdf.save(`Material_an_${issue.employee}_${issue.id}.pdf`);
+            pdf.addImage(canvasImg.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, (canvasImg.height * 210) / canvasImg.width);
+            pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
             document.body.removeChild(printDiv);
         }
 
-        // --- HISTORIE RENDERN UND LÖSCHEN ---
-        function renderHistory() {
-            document.getElementById('historyList').innerHTML = issues.map(issue => `
-                <li style="flex-direction: column; align-items: flex-start;">
-                    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
-                        <strong>${issue.date} - 👤 ${issue.employee}</strong>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g, "&quot;")})'>PDF</button>
-                            <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
-                        </div>
-                    </div>
-                    <span style="color: #666; font-size: 14px; margin-top: 5px;">Herausgegeben von: ${issue.issuer}</span>
-                    <span style="color: #666; font-size: 14px;">${issue.items.length} Teile (z.B. ${issue.items[0]})</span>
-                </li>
-            `).join('');
-        }
-
         function deleteIssue(id) {
-            if(confirm("Möchtest du diese Ausgabe wirklich endgültig löschen?")) {
-                issues = issues.filter(issue => issue.id !== id);
-                saveData();
-                renderHistory();
-            }
+            if(confirm("Ausgabe wirklich löschen?")) db.ref('issues/'+id).remove();
         }
-
-        function saveData() {
-            localStorage.setItem('emp_v1', JSON.stringify(employees));
-            localStorage.setItem('mat_v1', JSON.stringify(materials));
-            localStorage.setItem('iss_v1', JSON.stringify(issues));
-        }
-
-        // Init App
-        renderEmployees();
-        renderMaterials();
-        renderCart();
-        renderHistory();
     </script>
 </body>
 </html>
