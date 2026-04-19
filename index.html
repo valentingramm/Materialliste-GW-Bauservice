@@ -3,34 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Material Ausgabe</title>
+    <title>Material Verwaltung</title>
     
+    <!-- Firebase & PDF Libs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f0f2f5; 
+        }
         h1, h2, h3 { color: #1a1a1a; }
-        .card { background: white; margin-bottom: 20px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        input, button, select { padding: 12px; margin: 5px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { background-color: #007aff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .card { 
+            background: white; 
+            margin-bottom: 20px; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+        }
+        input, button, select { 
+            padding: 12px; 
+            margin: 5px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            width: 100%; 
+            box-sizing: border-box; 
+        }
+        button { 
+            background-color: #007aff; 
+            color: white; 
+            border: none; 
+            font-weight: bold; 
+            cursor: pointer; 
+        }
         button:hover { background-color: #0056b3; }
         button.danger { background-color: #ff3b30; }
         button.success { background-color: #34c759; }
+        button.secondary { background-color: #6c757d; }
         
-        /* Einheitliche Button-Größe */
         .btn-small { 
             padding: 8px 14px !important; 
             font-size: 14px !important; 
             width: auto !important; 
-            min-width: 95px;           /* Gleiche Breite für alle kleinen Buttons */
+            min-width: 95px;
             text-align: center;
         }
 
         ul { list-style: none; padding: 0; margin: 0; }
-        li { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; }
+        li { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px 12px; 
+            border-bottom: 1px solid #eee; 
+        }
         li:last-child { border-bottom: none; }
         .flex-row { display: flex; gap: 10px; align-items: center; }
         .flex-row input { flex: 1; }
@@ -54,10 +87,50 @@
         }
 
         #connectionStatus { padding: 12px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 20px; }
+        
+        /* Neuer Style für Startseite */
+        .start-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px 0;
+        }
+        .start-btn {
+            padding: 30px !important;
+            font-size: 28px !important;
+            border-radius: 20px !important;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        .back-btn {
+            margin-bottom: 15px;
+            background-color: #8e8e93;
+        }
+        .hidden { display: none !important; }
+        
+        .employee-material-list {
+            margin-top: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
-    <div id="connectionStatus">⏳ Verbinde zur Cloud...</div>
+
+<div id="connectionStatus">⏳ Verbinde zur Cloud...</div>
+
+<!-- ================= HAUPTMENÜ (NUR 2 FENSTER) ================= -->
+<div id="mainMenu">
+    <h1 style="text-align:center;">📋 Hauptmenü</h1>
+    <div class="start-menu">
+        <button class="start-btn success" onclick="showSection('ausgabe')">📤 AUSGABE</button>
+        <button class="start-btn" onclick="showSection('rueckgabe')" style="background-color:#ff9500;">📥 RÜCKGABE</button>
+    </div>
+</div>
+
+<!-- ================= AUSGABE (BISHERIGER CODE) ================= -->
+<div id="ausgabeSection" class="hidden">
+    <button class="back-btn btn-small" onclick="showSection('main')">⬅️ Zurück zum Menü</button>
     <h1>📦 Material Ausgabe</h1>
 
     <div class="card">
@@ -116,124 +189,171 @@
         <h2>📜 Ausgaben-Historie (Live)</h2>
         <ul id="historyList"></ul>
     </div>
+</div>
 
-    <script>
-        var firebaseConfig = {
-          apiKey: "AIzaSyAj5D135Fu7cEG2Qh9BB54qfrTo-TUz5nc",
-          authDomain: "material---ausgabe.firebaseapp.com",
-          databaseURL: "https://material---ausgabe-default-rtdb.europe-west1.firebasedatabase.app",
-          projectId: "material---ausgabe",
-          storageBucket: "material---ausgabe.firebasestorage.app",
-          messagingSenderId: "76046257977",
-          appId: "1:76046257977:web:5a17562816b60a47fa62e8"
-        };
+<!-- ================= RÜCKGABE ================= -->
+<div id="rueckgabeSection" class="hidden">
+    <button class="back-btn btn-small" onclick="showSection('main')">⬅️ Zurück zum Menü</button>
+    <h1>📥 Material Rückgabe</h1>
+    
+    <div class="card">
+        <h2>👤 Mitarbeiter auswählen</h2>
+        <select id="returnEmployeeSelect" class="btn-small" style="width:100%; padding:15px; margin-bottom:15px;">
+            <option value="">-- Bitte Mitarbeiter wählen --</option>
+        </select>
+        <button class="success" onclick="showEmployeeMaterials()" style="width:100%;">🔍 Materialien anzeigen</button>
+        
+        <div id="employeeMaterialDisplay" class="employee-material-list">
+            <!-- Hier werden die Materialien des gewählten Mitarbeiters angezeigt -->
+            <p style="color:#888; text-align:center;">Wählen Sie einen Mitarbeiter aus, um seine ausgeliehenen Materialien zu sehen.</p>
+        </div>
+    </div>
+</div>
 
-        firebase.initializeApp(firebaseConfig);
-        var db = firebase.database();
+<script>
+    // Firebase Init
+    var firebaseConfig = {
+      apiKey: "AIzaSyAj5D135Fu7cEG2Qh9BB54qfrTo-TUz5nc",
+      authDomain: "material---ausgabe.firebaseapp.com",
+      databaseURL: "https://material---ausgabe-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "material---ausgabe",
+      storageBucket: "material---ausgabe.firebasestorage.app",
+      messagingSenderId: "76046257977",
+      appId: "1:76046257977:web:5a17562816b60a47fa62e8"
+    };
 
-        let employees = [], materials = [], issues = [], currentCart = [];
-        let canvas = document.getElementById('signaturePad');
-        let ctx = canvas.getContext('2d');
-        let isDrawing = false;
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
 
-        db.ref('/').on('value', (snapshot) => {
-            const data = snapshot.val() || {};
-            employees = data.employees || ["Max Mustermann", "Anna Schmidt", "Thomas Berger"];
-            materials = data.materials || ["Akkuschrauber Makita", "Winkelschleifer", "Bohrhammer", "Verlängerungskabel 25m"];
-            issues = Object.values(data.issues || {}).sort((a,b) => b.id - a.id);
+    let employees = [], materials = [], issues = [], currentCart = [];
+    let canvas, ctx;
+    let isDrawing = false;
 
-            document.getElementById('connectionStatus').style.background = '#34c759';
-            document.getElementById('connectionStatus').innerHTML = '🟢 Live verbunden – Alle Geräte sehen Änderungen sofort';
-
-            renderAll();
-        });
-
-        function renderAll() {
-            renderEmployees();
-            renderMaterials();
-            renderHistory();
+    // --- UI Navigation ---
+    function showSection(section) {
+        document.getElementById('mainMenu').classList.add('hidden');
+        document.getElementById('ausgabeSection').classList.add('hidden');
+        document.getElementById('rueckgabeSection').classList.add('hidden');
+        
+        if (section === 'main') {
+            document.getElementById('mainMenu').classList.remove('hidden');
+        } else if (section === 'ausgabe') {
+            document.getElementById('ausgabeSection').classList.remove('hidden');
+            // Canvas initialisieren, sobald sichtbar
+            setTimeout(() => {
+                if (!canvas) {
+                    canvas = document.getElementById('signaturePad');
+                    ctx = canvas.getContext('2d');
+                    initCanvasEvents();
+                }
+                resizeCanvas();
+            }, 100);
+        } else if (section === 'rueckgabe') {
+            document.getElementById('rueckgabeSection').classList.remove('hidden');
+            // Dropdown für Rückgabe aktualisieren
+            updateReturnDropdown();
         }
+    }
 
-        function renderEmployees() {
-            document.getElementById('employeeList').innerHTML = employees.map((emp,i) => 
-                `<li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>`
-            ).join('');
-            
-            let opt = '<option value="">-- Bitte wählen --</option>' + employees.map(e => `<option value="${e}">${e}</option>`).join('');
-            document.getElementById('issuerSelect').innerHTML = opt;
-            document.getElementById('employeeSelect').innerHTML = opt;
-        }
+    // --- Datenbank Listener ---
+    db.ref('/').on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        employees = data.employees || ["Max Mustermann", "Anna Schmidt", "Thomas Berger"];
+        materials = data.materials || ["Akkuschrauber Makita", "Winkelschleifer", "Bohrhammer", "Verlängerungskabel 25m"];
+        issues = Object.values(data.issues || {}).sort((a,b) => b.id - a.id);
 
-        function renderMaterials() {
-            document.getElementById('materialList').innerHTML = materials.map((mat,i) => 
-                `<li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>`
-            ).join('');
+        document.getElementById('connectionStatus').style.background = '#34c759';
+        document.getElementById('connectionStatus').innerHTML = '🟢 Live verbunden – Alle Geräte sehen Änderungen sofort';
 
-            document.getElementById('availableMaterials').innerHTML = materials.map((mat) => 
+        renderAll();
+    });
+
+    function renderAll() {
+        renderEmployees();
+        renderMaterials();
+        renderHistory();
+        updateReturnDropdown();
+    }
+
+    // --- Ausgabe Funktionen ---
+    function renderEmployees() {
+        const list = document.getElementById('employeeList');
+        if (!list) return;
+        list.innerHTML = employees.map((emp,i) => 
+            `<li>${emp} <button class="danger btn-small" onclick="deleteEmployee(${i})">Löschen</button></li>`
+        ).join('');
+        
+        let opt = '<option value="">-- Bitte wählen --</option>' + employees.map(e => `<option value="${e}">${e}</option>`).join('');
+        const issuer = document.getElementById('issuerSelect');
+        const emp = document.getElementById('employeeSelect');
+        if(issuer) issuer.innerHTML = opt;
+        if(emp) emp.innerHTML = opt;
+    }
+
+    function renderMaterials() {
+        const list = document.getElementById('materialList');
+        if (!list) return;
+        list.innerHTML = materials.map((mat,i) => 
+            `<li>${mat} <button class="danger btn-small" onclick="deleteMaterial(${i})">Löschen</button></li>`
+        ).join('');
+
+        const avail = document.getElementById('availableMaterials');
+        if(avail) {
+            avail.innerHTML = materials.map((mat) => 
                 `<li>${mat} <button class="success btn-small" onclick="addToCart('${mat}')">➕ Hinzufügen</button></li>`
             ).join('');
         }
+    }
 
-        function renderHistory() {
-            document.getElementById('historyList').innerHTML = issues.map(issue => `
-                <li style="flex-direction:column;align-items:flex-start;">
-                    <div style="width:100%;display:flex;justify-content:space-between;">
-                        <strong>${issue.date} — ${issue.employee}</strong>
-                        <div>
-                            <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g,"&quot;")})'>PDF</button>
-                            <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
-                        </div>
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        if (!list) return;
+        list.innerHTML = issues.map(issue => `
+            <li style="flex-direction:column;align-items:flex-start;">
+                <div style="width:100%;display:flex;justify-content:space-between;">
+                    <strong>${issue.date} — ${issue.employee}</strong>
+                    <div>
+                        <button class="success btn-small" onclick='generatePDF(${JSON.stringify(issue).replace(/"/g,"&quot;")})'>PDF</button>
+                        <button class="danger btn-small" onclick="deleteIssue(${issue.id})">Löschen</button>
                     </div>
-                    <small>Herausgeber: ${issue.issuer} | ${issue.items.length} Teile</small>
-                </li>
-            `).join('');
-        }
-
-        function addEmployee() {
-            let val = document.getElementById('newEmployee').value.trim();
-            if(val) { employees.push(val); db.ref('employees').set(employees); document.getElementById('newEmployee').value = ''; }
-        }
-        function deleteEmployee(i) { employees.splice(i,1); db.ref('employees').set(employees); }
-
-        function addMaterial() {
-            let val = document.getElementById('newMaterial').value.trim();
-            if(val) { materials.push(val); db.ref('materials').set(materials); document.getElementById('newMaterial').value = ''; }
-        }
-        function deleteMaterial(i) { materials.splice(i,1); db.ref('materials').set(materials); }
-
-        function addToCart(mat) { currentCart.push(mat); renderCart(); }
-        function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
-
-        function renderCart() {
-            let div = document.getElementById('selectedMaterials');
-            if(currentCart.length === 0) {
-                div.innerHTML = '<p style="color:#888; text-align:center; padding:20px 0;">Noch kein Material ausgewählt</p>';
-                return;
-            }
-            div.innerHTML = currentCart.map((m,i) => `
-                <div class="cart-item">
-                    <span>${m}</span>
-                    <button class="danger btn-small" onclick="removeFromCart(${i})">❌ Entfernen</button>
                 </div>
-            `).join('');
+                <small>Herausgeber: ${issue.issuer} | ${issue.items.length} Teile</small>
+            </li>
+        `).join('');
+    }
+
+    function addEmployee() {
+        let val = document.getElementById('newEmployee').value.trim();
+        if(val) { employees.push(val); db.ref('employees').set(employees); document.getElementById('newEmployee').value = ''; }
+    }
+    function deleteEmployee(i) { employees.splice(i,1); db.ref('employees').set(employees); }
+
+    function addMaterial() {
+        let val = document.getElementById('newMaterial').value.trim();
+        if(val) { materials.push(val); db.ref('materials').set(materials); document.getElementById('newMaterial').value = ''; }
+    }
+    function deleteMaterial(i) { materials.splice(i,1); db.ref('materials').set(materials); }
+
+    function addToCart(mat) { currentCart.push(mat); renderCart(); }
+    function removeFromCart(i) { currentCart.splice(i,1); renderCart(); }
+
+    function renderCart() {
+        let div = document.getElementById('selectedMaterials');
+        if(!div) return;
+        if(currentCart.length === 0) {
+            div.innerHTML = '<p style="color:#888; text-align:center; padding:20px 0;">Noch kein Material ausgewählt</p>';
+            return;
         }
+        div.innerHTML = currentCart.map((m,i) => `
+            <div class="cart-item">
+                <span>${m}</span>
+                <button class="danger btn-small" onclick="removeFromCart(${i})">❌ Entfernen</button>
+            </div>
+        `).join('');
+    }
 
-        // Signatur-Funktionen
-        function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; }
-        window.addEventListener('resize', resizeCanvas);
-        setTimeout(resizeCanvas, 300);
-
-        function getPos(e) {
-            let rect = canvas.getBoundingClientRect();
-            let x = e.touches ? e.touches[0].clientX : e.clientX;
-            let y = e.touches ? e.touches[0].clientY : e.clientY;
-            return {x: x-rect.left, y:y-rect.top};
-        }
-
-        function startDrawing(e){e.preventDefault(); isDrawing=true; let p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y);}
-        function draw(e){if(!isDrawing)return; e.preventDefault(); let p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke();}
-        function stopDrawing(){isDrawing=false;}
-
+    // Canvas Funktionen
+    function initCanvasEvents() {
         canvas.addEventListener('touchstart', startDrawing, {passive:false});
         canvas.addEventListener('touchmove', draw, {passive:false});
         canvas.addEventListener('touchend', stopDrawing);
@@ -241,61 +361,176 @@
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
+    }
 
-        function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
-        function isCanvasBlank(){let b=document.createElement('canvas'); b.width=canvas.width; b.height=canvas.height; return canvas.toDataURL()===b.toDataURL();}
+    function resizeCanvas() { 
+        if(!canvas) return;
+        canvas.width = canvas.offsetWidth; 
+        canvas.height = canvas.offsetHeight; 
+        ctx.lineWidth = 3; 
+        ctx.lineCap = 'round'; 
+        ctx.strokeStyle = '#000'; 
+    }
+    window.addEventListener('resize', resizeCanvas);
 
-        async function saveIssue() {
-            let issuer = document.getElementById('issuerSelect').value;
-            let emp = document.getElementById('employeeSelect').value;
-            if(!issuer || !emp || issuer === emp || currentCart.length === 0 || isCanvasBlank()) {
-                return alert("Bitte alle Felder ausfüllen (Herausgeber, Empfänger, Material und Unterschrift)!");
+    function getPos(e) {
+        let rect = canvas.getBoundingClientRect();
+        let x = e.touches ? e.touches[0].clientX : e.clientX;
+        let y = e.touches ? e.touches[0].clientY : e.clientY;
+        return {x: x-rect.left, y:y-rect.top};
+    }
+
+    function startDrawing(e){e.preventDefault(); isDrawing=true; let p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y);}
+    function draw(e){if(!isDrawing)return; e.preventDefault(); let p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke();}
+    function stopDrawing(){isDrawing=false;}
+
+    function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
+    function isCanvasBlank(){let b=document.createElement('canvas'); b.width=canvas.width; b.height=canvas.height; return canvas.toDataURL()===b.toDataURL();}
+
+    async function saveIssue() {
+        let issuer = document.getElementById('issuerSelect').value;
+        let emp = document.getElementById('employeeSelect').value;
+        if(!issuer || !emp || issuer === emp || currentCart.length === 0 || isCanvasBlank()) {
+            return alert("Bitte alle Felder ausfüllen (Herausgeber, Empfänger, Material und Unterschrift)!");
+        }
+
+        let issueId = Date.now();
+        let issue = {
+            id: issueId,
+            date: new Date().toLocaleDateString('de-DE') + " " + new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
+            issuer: issuer,
+            employee: emp,
+            items: [...currentCart],
+            signature: canvas.toDataURL()
+        };
+
+        await db.ref('issues/' + issueId).set(issue);
+        generatePDF(issue);
+
+        currentCart = [];
+        renderCart();
+        clearSignature();
+        document.getElementById('issuerSelect').value = "";
+        document.getElementById('employeeSelect').value = "";
+    }
+
+    async function generatePDF(issue) {
+        const printDiv = document.createElement('div');
+        printDiv.style.padding = "40px"; printDiv.style.fontFamily = "Arial"; printDiv.style.width = "800px";
+        printDiv.innerHTML = `
+            <h1>Übergabeprotokoll Material</h1>
+            <p><strong>Datum:</strong> ${issue.date}</p>
+            <p><strong>Herausgeber:</strong> ${issue.issuer}</p>
+            <p><strong>Empfänger:</strong> ${issue.employee}</p>
+            <h3>Übergebene Materialien:</h3>
+            <ul>${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}</ul>
+            <p><strong>Unterschrift Empfänger:</strong></p>
+            <img src="${issue.signature}" style="border:1px solid #000; max-width:400px;">
+        `;
+        document.body.appendChild(printDiv);
+        const canvasImg = await html2canvas(printDiv, {scale: 2});
+        const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+        pdf.addImage(canvasImg.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, (canvasImg.height * 210) / canvasImg.width);
+        pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
+        document.body.removeChild(printDiv);
+    }
+
+    function deleteIssue(id) {
+        if(confirm("Ausgabe wirklich löschen?")) db.ref('issues/'+id).remove();
+    }
+
+    // --- Rückgabe Funktionen ---
+    function updateReturnDropdown() {
+        const select = document.getElementById('returnEmployeeSelect');
+        if (!select) return;
+        select.innerHTML = '<option value="">-- Bitte Mitarbeiter wählen --</option>' + 
+            employees.map(e => `<option value="${e}">${e}</option>`).join('');
+    }
+
+    function showEmployeeMaterials() {
+        const select = document.getElementById('returnEmployeeSelect');
+        const employeeName = select.value;
+        const displayDiv = document.getElementById('employeeMaterialDisplay');
+        
+        if (!employeeName) {
+            displayDiv.innerHTML = '<p style="color:#888; text-align:center;">Bitte wählen Sie einen Mitarbeiter aus.</p>';
+            return;
+        }
+
+        // Alle Ausgaben dieses Mitarbeiters finden (nur aktuelle, keine Historie löschen)
+        const employeeIssues = issues.filter(issue => issue.employee === employeeName);
+        
+        if (employeeIssues.length === 0) {
+            displayDiv.innerHTML = `<p style="color:#888; text-align:center;">${employeeName} hat aktuell keine Materialien ausgeliehen.</p>`;
+            return;
+        }
+
+        // Alle Materialien aus allen Issues des Mitarbeiters sammeln
+        let allItems = [];
+        employeeIssues.forEach(issue => {
+            allItems = allItems.concat(issue.items);
+        });
+
+        // Duplikate entfernen, falls gewünscht, hier zeigen wir einfach alles an
+        // Besser: Gruppieren und zählen
+        let itemCounts = {};
+        allItems.forEach(item => { itemCounts[item] = (itemCounts[item] || 0) + 1; });
+
+        let html = `<h3>📋 Materialien von ${employeeName}:</h3><ul>`;
+        for (let [item, count] of Object.entries(itemCounts)) {
+            html += `<li style="justify-content:space-between;"><span>${item} ${count > 1 ? `(${count}x)` : ''}</span> 
+                     <button class="success btn-small" onclick="returnSingleItem('${employeeName}', '${item}')">✅ Zurückgeben</button></li>`;
+        }
+        html += '</ul>';
+        html += `<button class="danger" style="margin-top:15px;" onclick="returnAllItems('${employeeName}')">🔄 ALLE Materialien von ${employeeName} zurückgeben</button>`;
+        
+        displayDiv.innerHTML = html;
+    }
+
+    window.returnSingleItem = function(employeeName, itemName) {
+        if (!confirm(`Soll "${itemName}" wirklich zurückgegeben werden?`)) return;
+        
+        // Finde den ersten Issue, der dieses Item enthält
+        let issueToModify = null;
+        for (let issue of issues) {
+            if (issue.employee === employeeName && issue.items.includes(itemName)) {
+                issueToModify = issue;
+                break;
             }
-
-            let issueId = Date.now();
-            let issue = {
-                id: issueId,
-                date: new Date().toLocaleDateString('de-DE') + " " + new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
-                issuer: issuer,
-                employee: emp,
-                items: [...currentCart],
-                signature: canvas.toDataURL()
-            };
-
-            await db.ref('issues/' + issueId).set(issue);
-            generatePDF(issue);
-
-            currentCart = [];
-            renderCart();
-            clearSignature();
-            document.getElementById('issuerSelect').value = "";
-            document.getElementById('employeeSelect').value = "";
         }
-
-        async function generatePDF(issue) {
-            const printDiv = document.createElement('div');
-            printDiv.style.padding = "40px"; printDiv.style.fontFamily = "Arial"; printDiv.style.width = "800px";
-            printDiv.innerHTML = `
-                <h1>Übergabeprotokoll Material</h1>
-                <p><strong>Datum:</strong> ${issue.date}</p>
-                <p><strong>Herausgeber:</strong> ${issue.issuer}</p>
-                <p><strong>Empfänger:</strong> ${issue.employee}</p>
-                <h3>Übergebene Materialien:</h3>
-                <ul>${issue.items.map(item => `<li>☑ ${item}</li>`).join('')}</ul>
-                <p><strong>Unterschrift Empfänger:</strong></p>
-                <img src="${issue.signature}" style="border:1px solid #000; max-width:400px;">
-            `;
-            document.body.appendChild(printDiv);
-            const canvasImg = await html2canvas(printDiv, {scale: 2});
-            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-            pdf.addImage(canvasImg.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, (canvasImg.height * 210) / canvasImg.width);
-            pdf.save(`Material_${issue.employee}_${issue.id}.pdf`);
-            document.body.removeChild(printDiv);
+        
+        if (issueToModify) {
+            // Item aus dem Array entfernen
+            const index = issueToModify.items.indexOf(itemName);
+            if (index > -1) issueToModify.items.splice(index, 1);
+            
+            if (issueToModify.items.length === 0) {
+                // Wenn keine Items mehr übrig, Issue löschen
+                db.ref('issues/' + issueToModify.id).remove();
+            } else {
+                // Sonst aktualisieren
+                db.ref('issues/' + issueToModify.id).set(issueToModify);
+            }
+            alert(`${itemName} wurde zurückgegeben.`);
         }
+        // Aktualisierung erfolgt automatisch über Firebase Listener
+    };
 
-        function deleteIssue(id) {
-            if(confirm("Ausgabe wirklich löschen?")) db.ref('issues/'+id).remove();
-        }
-    </script>
+    window.returnAllItems = function(employeeName) {
+        if (!confirm(`ALLE Materialien von ${employeeName} zurückgeben?`)) return;
+        
+        // Alle Issues des Mitarbeiters löschen
+        issues.filter(i => i.employee === employeeName).forEach(issue => {
+            db.ref('issues/' + issue.id).remove();
+        });
+        alert(`Alle Materialien von ${employeeName} wurden zurückgegeben.`);
+    };
+
+    // Initialisierung nach Firebase Load verzögert
+    setTimeout(() => {
+        // Start im Hauptmenü
+        showSection('main');
+    }, 500);
+</script>
 </body>
 </html>
